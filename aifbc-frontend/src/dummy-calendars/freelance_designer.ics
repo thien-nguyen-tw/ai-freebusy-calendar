@@ -1,0 +1,76 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Freelance Designer Busy Calendar//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250620T100000Z-1@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250620T100000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250620T110000
+SUMMARY:Client Kick-off Call: E-commerce Site
+LOCATION:Google Meet
+DESCRIPTION:Initial meeting with new client to discuss project goals.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250620T130000Z-2@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250620T130000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250620T170000
+SUMMARY:Focus Work: Logo Concepts for 'Innovate'
+LOCATION:Home Office
+DESCRIPTION:Dedicated time for creative exploration. Do not disturb.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250623T110000Z-3@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250623T110000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250623T120000
+SUMMARY:Client Feedback Session: Mobile App UI
+LOCATION:Zoom
+DESCRIPTION:Reviewing the latest mockups with the client.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250624T000000Z-4@designfreelance.com
+DTSTART;VALUE=DATE:20250624
+DTEND;VALUE=DATE:20250625
+SUMMARY:Project Deadline: 'Innovate' Logo Presentation
+DESCRIPTION:Send the initial logo concepts to the client.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250625T140000Z-5@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250625T140000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250625T170000
+SUMMARY:Co-working & Networking
+LOCATION:The Hive, District 2
+DESCRIPTION:Working alongside other creatives.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250627T090000Z-6@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250627T090000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250627T120000
+SUMMARY:Admin & Invoicing
+LOCATION:Home Office
+DESCRIPTION:Catch up on finances and send out invoices.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250630T160000Z-7@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250630T160000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250630T173000
+SUMMARY:Webinar: The Future of UI/UX
+LOCATION:Online
+DESCRIPTION:Professional development to stay updated on trends.
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20250619T080000Z
+UID:20250702T130000Z-8@designfreelance.com
+DTSTART;TZID=Asia/Ho_Chi_Minh:20250702T130000
+DTEND;TZID=Asia/Ho_Chi_Minh:20250702T170000
+SUMMARY:Focus Work: Revisions for Mobile App UI
+LOCATION:Home Office
+DESCRIPTION:Implementing client feedback from the last session.
+END:VEVENT
+END:VCALENDAR
