@@ -146,7 +146,7 @@ const aiAnalyticsHandler = async (req: Request, res: Response) => {
   try {
     const { userPrompt, jsonData } = req.body;
 
-    const fullPrompt = `${userPrompt}\n\nHere is the calendar data:\n\n${jsonData}`;
+    const fullPrompt = `You are a helpful AI assistant that analyzes Google Calendar data. Here is the all calendars data: \n\n${jsonData}\n\nUser Question: ${userPrompt}\n\nPlease provide a helpful analysis based on the calendar data above. Be concise and actionable.`;
 
     const result = await model.generateContent(fullPrompt);
     const response = result.response.text();

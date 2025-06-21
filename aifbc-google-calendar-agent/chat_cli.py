@@ -91,7 +91,7 @@ def get_gemini_model():
         sys.exit(1)
 
 
-def get_calendar_data(service, days=7):
+def get_calendar_data(service, days=30):
     """Get calendar data for AI analysis."""
     try:
         # Get events for the next N days
@@ -340,7 +340,7 @@ def main():
                 )
                 end_date = Prompt.ask(
                     "End date (YYYY-MM-DD)",
-                    default=(datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
+                    default=(datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d"),
                 )
 
                 try:

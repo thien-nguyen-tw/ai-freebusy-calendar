@@ -95,7 +95,7 @@ const TimezoneSelector: FC<{
     <Box sx={{ mb: 3 }}>
       <Typography variant="h6" gutterBottom>
         <AccessTime sx={{ mr: 1, verticalAlign: 'middle' }} />
-        Timezone
+        Select your desired timezone
       </Typography>
       <FormControl fullWidth>
         <InputLabel>Select Timezone</InputLabel>
@@ -557,7 +557,7 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
   return (
     <Box>
       <Typography variant="h5" component="h2" gutterBottom>
-        Quick Calendar Options
+        Choose your quick option to view the calendar:
       </Typography>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -579,17 +579,17 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
               </MenuItem>
               <MenuItem value="freebusy">
                 <Schedule sx={{ mr: 1 }} />
-                Free/Busy Status
+                Free/Busy Times
               </MenuItem>
             </Select>
           </FormControl>
         </Grid>
 
         {selectedOption === 'events' && (
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={6} style={{ width: '200px' }}>
             <TextField
               fullWidth
-              label="Number of Events"
+              label="Number of upcoming events"
               type="number"
               value={maxResults}
               onChange={e => setMaxResults(Number(e.target.value))}
@@ -792,11 +792,10 @@ const App: React.FC = () => {
       <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
         <header className="text-center mb-5">
           <Typography variant="h3" component="h1" fontWeight="bold">
-            Calendar AI Analyzer
+            Calendar AI Assistant
           </Typography>
           <Typography variant="h6" color="text.secondary">
-            Upload iCalendar files or connect to Google Calendar for AI-powered
-            analysis.
+            A powerful AI assistant for your personal calendar.
           </Typography>
         </header>
 

@@ -110,7 +110,7 @@ def convert_to_timezone(date_str: str, timezone_str: str = "Asia/Bangkok") -> st
         return date_str
 
 
-def get_calendar_data(service, days=7, timezone_str="Asia/Bangkok"):
+def get_calendar_data(service, days=30, timezone_str="Asia/Bangkok"):
     """Get calendar data for AI analysis."""
     try:
         # Get events for the next N days
