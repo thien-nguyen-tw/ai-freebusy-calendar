@@ -1,4 +1,15 @@
-import { Close, CloudUpload } from "@mui/icons-material";
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react';
+
+import {
+  Close,
+  CloudUpload,
+  CalendarToday,
+  Event as MUIEvent,
+  Schedule,
+  Psychology,
+  Google,
+  AccessTime,
+} from '@mui/icons-material';
 import {
   Alert,
   Box,
@@ -10,97 +21,39 @@ import {
   IconButton,
   TextField,
   Typography,
-} from "@mui/material";
-import type { TypographyProps } from "@mui/material/Typography";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
-import React, { FC, useCallback, useEffect, useRef, useState } from "react";
+  Tabs,
+  Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+} from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 
-// --- Type Definitions ---
+// Import types from types.ts
+import {
+  CalendarEvent,
+  MessageType,
+  MessageBoxProps,
+  FileUploadProps,
+  AiAnalysisProps,
+  AiReportProps,
+  QuickCalendarProps,
+  GoogleCalendarProps,
+} from './types';
 
-interface CalendarEvent {
-  uid: string | null;
-  summary: string | null;
-  description: string | null;
-  location: string | null;
-  dtstart: string | null;
-  dtend: string | null;
-  status: string | null;
-  organizer: string | null;
-  attendees: string[];
-}
-
-type MessageType = "info" | "success" | "warning" | "danger";
-
-interface MessageBoxProps {
-  message: string;
-  type: MessageType;
-  onClear: () => void;
-}
-
-interface FileUploadProps {
-  onFilesProcessed: (jsonData: string) => void;
-  onMessage: (text: string, type: MessageType) => void;
-}
-
-interface AiAnalysisProps {
-  jsonData: string;
-  onAnalysisStart: () => void;
-  onAnalysisComplete: (reportHtml: string) => void;
-  onMessage: (text: string, type: MessageType) => void;
-}
-
-interface AiReportProps {
-  report: string;
-  isLoading: boolean;
-}
-
-// --- Helper Functions ---
-
-const parseICS = (icsData: string): CalendarEvent[] => {
-  const events: CalendarEvent[] = [];
-  const eventRegex = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/g;
-  let match;
-
-  while ((match = eventRegex.exec(icsData)) !== null) {
-    const eventData = match[1];
-    const event: Partial<CalendarEvent> = {};
-
-    const getProp = (propName: string): string | null => {
-      const propRegex = new RegExp(`^${propName}(?:;.+?)?:(.*)$`, "im");
-      const propMatch = eventData.match(propRegex);
-      return propMatch
-        ? propMatch[1].trim().replace(/\\,/g, ",").replace(/\\n/g, "\n")
-        : null;
-    };
-
-    event.uid = getProp("UID");
-    event.summary = getProp("SUMMARY");
-    event.description = getProp("DESCRIPTION");
-    event.location = getProp("LOCATION");
-    event.dtstart = getProp("DTSTART");
-    event.dtend = getProp("DTEND");
-    event.status = getProp("STATUS");
-    event.organizer = getProp("ORGANIZER");
-
-    const attendeeRegex = /^ATTENDEE(?:;.+?)?:(.*)$/gim;
-    let attendeeMatch;
-    event.attendees = [];
-    while ((attendeeMatch = attendeeRegex.exec(eventData)) !== null) {
-      event.attendees.push(attendeeMatch[1].trim());
-    }
-    events.push(event as CalendarEvent);
-  }
-  return events;
-};
+// Import utils from utils.ts
+import { parseICS, COMMON_TIMEZONES, formatDateForAPI } from './utils';
 
 // --- MUI Theme ---
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#1976d2",
+      main: '#1976d2',
     },
     secondary: {
-      main: "#dc004e",
+      main: '#dc004e',
     },
   },
 });
@@ -117,13 +70,47 @@ const MessageBox: FC<MessageBoxProps> = ({ message, type, onClear }) => {
 
   if (!message) return null;
 
-  const severity = type === "danger" ? "error" : type;
+  const severity = type === 'danger' ? 'error' : type;
 
   return (
-    <Box sx={{ position: "fixed", top: 20, right: 20, zIndex: 1050 }}>
+    <Box sx={{ position: 'fixed', top: 20, right: 20, zIndex: 1050 }}>
       <Alert severity={severity} onClose={onClear}>
         {message}
       </Alert>
+    </Box>
+  );
+};
+
+const TimezoneSelector: FC<{
+  timezone: string;
+  onTimezoneChange: (timezone: string) => void;
+  onMessage: (text: string, type: MessageType) => void;
+}> = ({ timezone, onTimezoneChange, onMessage }) => {
+  const handleTimezoneChange = (newTimezone: string) => {
+    onTimezoneChange(newTimezone);
+    onMessage(`Timezone changed to ${newTimezone}`, 'info');
+  };
+
+  return (
+    <Box sx={{ mb: 3 }}>
+      <Typography variant="h6" gutterBottom>
+        <AccessTime sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Timezone
+      </Typography>
+      <FormControl fullWidth>
+        <InputLabel>Select Timezone</InputLabel>
+        <Select
+          value={timezone}
+          label="Select Timezone"
+          onChange={e => handleTimezoneChange(e.target.value)}
+        >
+          {COMMON_TIMEZONES.map(tz => (
+            <MenuItem key={tz.value} value={tz.value}>
+              {tz.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
     </Box>
   );
 };
@@ -145,9 +132,9 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
           const errorMessage =
             error instanceof Error
               ? error.message
-              : "An unknown error occurred.";
-          onMessage(`Error processing ${file.name}: ${errorMessage}`, "danger");
-          console.error("Error reading or parsing file:", file.name, error);
+              : 'An unknown error occurred.';
+          onMessage(`Error processing ${file.name}: ${errorMessage}`, 'danger');
+          console.error('Error reading or parsing file:', file.name, error);
         }
       }
       const jsonData = JSON.stringify(allEvents, null, 2);
@@ -158,13 +145,13 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (!newFiles) return;
-    const validFiles = Array.from(newFiles).filter((file) =>
-      file.name.toLowerCase().endsWith(".ics")
+    const validFiles = Array.from(newFiles).filter(file =>
+      file.name.toLowerCase().endsWith('.ics')
     );
     if (validFiles.length !== newFiles.length) {
       onMessage(
-        "Some files were not in the .ics format and were ignored.",
-        "warning"
+        'Some files were not in the .ics format and were ignored.',
+        'warning'
       );
     }
     const updatedFiles = [...uploadedFiles, ...validFiles];
@@ -196,7 +183,7 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
     const updatedFiles = uploadedFiles.filter((_, i) => i !== index);
     setUploadedFiles(updatedFiles);
     onFilesProcessed(
-      updatedFiles.length > 0 ? JSON.stringify(parseICS(""), null, 2) : ""
+      updatedFiles.length > 0 ? JSON.stringify(parseICS(''), null, 2) : ''
     );
     if (updatedFiles.length > 0) {
       processFiles(updatedFiles);
@@ -211,14 +198,14 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
       <Box
         sx={{
           border: `2px dashed ${
-            isDragOver ? theme.palette.primary.main : "grey.400"
+            isDragOver ? theme.palette.primary.main : 'grey.400'
           }`,
-          backgroundColor: isDragOver ? "action.hover" : "background.paper",
+          backgroundColor: isDragOver ? 'action.hover' : 'background.paper',
           p: 4,
-          textAlign: "center",
+          textAlign: 'center',
           borderRadius: 1,
-          cursor: "pointer",
-          transition: "border-color 0.3s, background-color 0.3s",
+          cursor: 'pointer',
+          transition: 'border-color 0.3s, background-color 0.3s',
         }}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -231,20 +218,20 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
           multiple
           ref={fileInputRef}
           className="d-none"
-          onChange={(e) => handleFileChange(e.target.files)}
+          onChange={e => handleFileChange(e.target.files)}
         />
         {uploadedFiles.length === 0 ? (
           <Box>
-            <CloudUpload sx={{ fontSize: 48, color: "text.secondary" }} />
+            <CloudUpload sx={{ fontSize: 48, color: 'text.secondary' }} />
             <Typography variant="h6">
               <span
                 style={{
                   color: theme.palette.primary.main,
-                  fontWeight: "bold",
+                  fontWeight: 'bold',
                 }}
               >
                 Click to upload
-              </span>{" "}
+              </span>{' '}
               or drag and drop
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -252,7 +239,7 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
             </Typography>
           </Box>
         ) : (
-          <Box sx={{ textAlign: "left" }}>
+          <Box sx={{ textAlign: 'left' }}>
             {uploadedFiles.map((file, index) => (
               <Card
                 key={index}
@@ -260,15 +247,15 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
                 sx={{
                   mb: 1,
                   p: 1,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
                 <Typography variant="body2">{file.name}</Typography>
                 <IconButton
                   size="small"
-                  onClick={(e) => {
+                  onClick={e => {
                     e.stopPropagation();
                     removeFile(index);
                   }}
@@ -290,54 +277,54 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
   onAnalysisStart,
   onMessage,
 }) => {
-  const [prompt, setPrompt] = useState<string>("");
+  const [prompt, setPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleAnalyze = async () => {
-    if (!jsonData || jsonData === "[]") {
+    if (!jsonData || jsonData === '[]') {
       onMessage(
-        "No data available for analysis. Please upload valid files first.",
-        "warning"
+        'No data available for analysis. Please upload valid files first.',
+        'warning'
       );
       return;
     }
 
     setIsLoading(true);
     onAnalysisStart();
-    let userPrompt =
+    const userPrompt =
       prompt.trim() ||
-      "Based on the following calendar data in JSON format, provide a concise summary of the upcoming events. Mention the total number of events, highlight any potential conflicts or busy days, and list the next 3 upcoming events with their date and time.";
+      'Based on the following calendar data in JSON format, provide a concise summary of the upcoming events. Mention the total number of events, highlight any potential conflicts or busy days, and list the next 3 upcoming events with their date and time.';
     try {
       const payload = {
         userPrompt,
         jsonData,
       };
-      const apiUrl = "http://localhost:8000/ai-analytics";
+      const apiUrl = 'http://localhost:8000/ai-analytics';
       const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const { result }: { result?: { text?: string } } = await response.json();
       const content = result?.text?.trim();
 
       if (content) {
-        let htmlText = content
-          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-          .replace(/\*(.*?)\*/g, "<em>$1</em>")
-          .replace(/(\r\n|\n|\r)/g, "<br />");
+        const htmlText = content
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/(\r\n|\n|\r)/g, '<br />');
         onAnalysisComplete(htmlText);
       } else {
         throw new Error(`Invalid response structure from AI API`);
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred.";
-      console.error("AI Analysis Error:", errorMessage);
+        error instanceof Error ? error.message : 'An unknown error occurred.';
+      console.error('AI Analysis Error:', errorMessage);
       onAnalysisComplete(
         `<p style="color: red;"><strong>Error:</strong> Could not get analysis. ${errorMessage}</p>`
       );
-      onMessage(`Analysis failed: ${errorMessage}`, "danger");
+      onMessage(`Analysis failed: ${errorMessage}`, 'danger');
     } finally {
       setIsLoading(false);
     }
@@ -356,10 +343,10 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
         fullWidth
         variant="outlined"
         value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
+        onChange={e => setPrompt(e.target.value)}
         placeholder="Summarize my upcoming week's schedule."
       />
-      <Box sx={{ textAlign: "center", mt: 2 }}>
+      <Box sx={{ textAlign: 'center', mt: 2 }}>
         <Button
           variant="contained"
           color="success"
@@ -369,7 +356,7 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
             isLoading ? <CircularProgress size={20} color="inherit" /> : null
           }
         >
-          {isLoading ? "Analyzing..." : "Analyze with AI"}
+          {isLoading ? 'Analyzing...' : 'Analyze with AI'}
         </Button>
       </Box>
     </Box>
@@ -379,7 +366,7 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
 const AiReport: FC<AiReportProps> = ({ report, isLoading }) => {
   if (isLoading) {
     return (
-      <Box sx={{ textAlign: "center", py: 4 }}>
+      <Box sx={{ textAlign: 'center', py: 4 }}>
         <CircularProgress />
         <Typography color="text.secondary" sx={{ mt: 2 }}>
           AI is analyzing your calendar...
@@ -395,7 +382,7 @@ const AiReport: FC<AiReportProps> = ({ report, isLoading }) => {
         AI Report
       </Typography>
       <Card variant="outlined">
-        <CardContent sx={{ backgroundColor: "action.hover" }}>
+        <CardContent sx={{ backgroundColor: 'action.hover' }}>
           <Typography
             component="div"
             dangerouslySetInnerHTML={{ __html: report }}
@@ -406,32 +393,393 @@ const AiReport: FC<AiReportProps> = ({ report, isLoading }) => {
   );
 };
 
-export default function App(): JSX.Element {
-  const [jsonData, setJsonData] = useState<string>("");
-  const [aiReport, setAiReport] = useState<string>("");
+const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
+  onMessage,
+  timezone,
+}) => {
+  const [selectedOption, setSelectedOption] = useState<string>('events');
+  const [maxResults, setMaxResults] = useState<number>(10);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    // Set default dates in selected timezone
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    setStartDate(formatDateForAPI(today, timezone).split(' ')[0]);
+    setEndDate(formatDateForAPI(nextWeek, timezone).split(' ')[0]);
+  }, [timezone]);
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setResult(null);
+
+    try {
+      let response;
+      const baseUrl = 'http://localhost:8000/calendar';
+
+      switch (selectedOption) {
+        case 'events':
+          response = await fetch(
+            `${baseUrl}/events?max_results=${maxResults}&timezone=${encodeURIComponent(
+              timezone
+            )}`
+          );
+          break;
+        case 'today':
+          response = await fetch(
+            `${baseUrl}/today?timezone=${encodeURIComponent(timezone)}`
+          );
+          break;
+        case 'freebusy':
+          response = await fetch(`${baseUrl}/freebusy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              start_date: startDate,
+              end_date: endDate,
+              timezone,
+            }),
+          });
+          break;
+        default:
+          throw new Error('Invalid option selected');
+      }
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResult(data);
+        onMessage('Calendar data retrieved successfully!', 'success');
+      } else {
+        throw new Error(data.error || 'Failed to fetch calendar data');
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred.';
+      onMessage(`Error: ${errorMessage}`, 'danger');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatResult = () => {
+    if (!result) return null;
+
+    switch (selectedOption) {
+      case 'events':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Upcoming Events ({timezone})
+            </Typography>
+            {result.events?.map((event: any, index: number) => (
+              <Card key={index} sx={{ mb: 1, p: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  {event.summary}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {event.start} - {event.end}
+                </Typography>
+                {event.location && (
+                  <Typography variant="body2" color="text.secondary">
+                    📍 {event.location}
+                  </Typography>
+                )}
+              </Card>
+            ))}
+          </Box>
+        );
+
+      case 'today':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Today&apos;s Events ({result.date}) - {timezone}
+            </Typography>
+            {result.events?.map((event: any, index: number) => (
+              <Card key={index} sx={{ mb: 1, p: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  {event.summary}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {event.start} - {event.end}
+                </Typography>
+                {event.location && (
+                  <Typography variant="body2" color="text.secondary">
+                    📍 {event.location}
+                  </Typography>
+                )}
+              </Card>
+            ))}
+          </Box>
+        );
+
+      case 'freebusy':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Free/Busy Status ({timezone})
+            </Typography>
+            {result.is_busy ? (
+              <Box>
+                <Typography variant="body1" color="error" gutterBottom>
+                  Busy Periods:
+                </Typography>
+                {result.busy_periods?.map((period: any, index: number) => (
+                  <Card
+                    key={index}
+                    sx={{ mb: 1, p: 2, bgcolor: 'error.light' }}
+                  >
+                    <Typography variant="body2">
+                      {period.start_formatted} - {period.end_formatted}
+                    </Typography>
+                  </Card>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body1" color="success.main">
+                No busy periods found in this time range.
+              </Typography>
+            )}
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Box>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Quick Calendar Options
+      </Typography>
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={6}>
+          <FormControl fullWidth>
+            <InputLabel>Calendar Option</InputLabel>
+            <Select
+              value={selectedOption}
+              label="Calendar Option"
+              onChange={e => setSelectedOption(e.target.value)}
+            >
+              <MenuItem value="events">
+                <MUIEvent sx={{ mr: 1 }} />
+                Upcoming Events
+              </MenuItem>
+              <MenuItem value="today">
+                <CalendarToday sx={{ mr: 1 }} />
+                Today&apos;s Events
+              </MenuItem>
+              <MenuItem value="freebusy">
+                <Schedule sx={{ mr: 1 }} />
+                Free/Busy Status
+              </MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {selectedOption === 'events' && (
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Number of Events"
+              type="number"
+              value={maxResults}
+              onChange={e => setMaxResults(Number(e.target.value))}
+              inputProps={{ min: 1, max: 50 }}
+            />
+          </Grid>
+        )}
+
+        {selectedOption === 'freebusy' && (
+          <>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="End Date"
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+          </>
+        )}
+      </Grid>
+
+      <Button
+        variant="contained"
+        onClick={handleSubmit}
+        disabled={isLoading}
+        startIcon={isLoading ? <CircularProgress size={20} /> : null}
+        sx={{ mb: 3 }}
+      >
+        {isLoading ? 'Loading...' : 'Get Calendar Data'}
+      </Button>
+
+      {result && (
+        <Card variant="outlined">
+          <CardContent>{formatResult()}</CardContent>
+        </Card>
+      )}
+    </Box>
+  );
+};
+
+const GoogleCalendar: FC<GoogleCalendarProps & { timezone: string }> = ({
+  onMessage,
+  timezone,
+}) => {
+  const [question, setQuestion] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [result, setResult] = useState<any>(null);
+
+  const handleSubmit = async () => {
+    if (!question.trim()) {
+      onMessage('Please enter a question', 'warning');
+      return;
+    }
+
+    setIsLoading(true);
+    setResult(null);
+
+    try {
+      const response = await fetch('http://localhost:8000/calendar/ai-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: question.trim(),
+          timezone,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResult(data);
+        onMessage('AI analysis completed!', 'success');
+      } else {
+        throw new Error(data.error || 'Failed to get AI analysis');
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred.';
+      onMessage(`Error: ${errorMessage}`, 'danger');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Box>
+      <Typography variant="h5" component="h2" gutterBottom>
+        <Google sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Google Calendar AI Query ({timezone})
+      </Typography>
+
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        Ask AI questions about your connected Google Calendar
+      </Typography>
+
+      <TextField
+        fullWidth
+        multiline
+        rows={3}
+        label="Ask about your calendar"
+        value={question}
+        onChange={e => setQuestion(e.target.value)}
+        placeholder="e.g., What's my busiest day this week? When do I have free time for a meeting?"
+        sx={{ mb: 2 }}
+      />
+
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleSubmit}
+        disabled={isLoading || !question.trim()}
+        startIcon={isLoading ? <CircularProgress size={20} /> : <Psychology />}
+        sx={{ mb: 3 }}
+      >
+        {isLoading ? 'Analyzing...' : 'Ask AI'}
+      </Button>
+
+      {result && (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              AI Analysis
+            </Typography>
+            <Typography
+              component="div"
+              dangerouslySetInnerHTML={{
+                __html: result.response
+                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                  .replace(/(\r\n|\n|\r)/g, '<br />'),
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
+};
+
+const App: React.FC = () => {
+  const [jsonData, setJsonData] = useState<string>('');
+  const [aiReport, setAiReport] = useState<string>('');
   const [isAnalysisRunning, setIsAnalysisRunning] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>("");
-  const [messageType, setMessageType] = useState<MessageType>("info");
+  const [message, setMessage] = useState<string>('');
+  const [messageType, setMessageType] = useState<MessageType>('info');
+  const [activeTab, setActiveTab] = useState<number>(0);
+  const [timezone, setTimezone] = useState<string>('Asia/Bangkok'); // Default to GMT+7
 
   const handleFilesProcessed = (data: string) => {
     setJsonData(data);
-    setAiReport("");
-    if (data && data !== "[]") {
-      handleMessage("Files processed. Ready for AI analysis.", "success");
+    setAiReport('');
+    if (data && data !== '[]') {
+      handleMessage('Files processed. Ready for AI analysis.', 'success');
     }
   };
 
   const handleAnalysisStart = () => {
     setIsAnalysisRunning(true);
-    setAiReport("");
+    setAiReport('');
   };
+
   const handleAnalysisComplete = (reportHtml: string) => {
     setIsAnalysisRunning(false);
     setAiReport(reportHtml);
   };
-  const handleMessage = (text: string, type: MessageType = "info") => {
+
+  const handleMessage = (text: string, type: MessageType = 'info') => {
     setMessage(text);
     setMessageType(type);
+  };
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  const handleTimezoneChange = (newTimezone: string) => {
+    setTimezone(newTimezone);
   };
 
   return (
@@ -439,46 +787,88 @@ export default function App(): JSX.Element {
       <MessageBox
         message={message}
         type={messageType}
-        onClear={() => setMessage("")}
+        onClear={() => setMessage('')}
       />
-      <Container component="main" maxWidth="md" sx={{ py: 4 }}>
+      <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
         <header className="text-center mb-5">
           <Typography variant="h3" component="h1" fontWeight="bold">
             Calendar AI Analyzer
           </Typography>
           <Typography variant="h6" color="text.secondary">
-            Upload iCalendar (.ics) files for an AI-powered analysis.
+            Upload iCalendar files or connect to Google Calendar for AI-powered
+            analysis.
           </Typography>
         </header>
 
         <Card raised>
           <CardContent sx={{ p: { xs: 2, md: 4 } }}>
-            <div className="row g-5">
-              <div className="col-12">
-                <FileUpload
-                  onFilesProcessed={handleFilesProcessed}
-                  onMessage={handleMessage}
-                />
-              </div>
-              {jsonData && jsonData !== "[]" && (
+            <TimezoneSelector
+              timezone={timezone}
+              onTimezoneChange={handleTimezoneChange}
+              onMessage={handleMessage}
+            />
+
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              variant="fullWidth"
+              sx={{ mb: 4 }}
+            >
+              <Tab
+                label="Quick Calendar"
+                icon={<MUIEvent />}
+                iconPosition="start"
+              />
+              <Tab
+                label="Upload & Analyze"
+                icon={<CloudUpload />}
+                iconPosition="start"
+              />
+              <Tab
+                label="Google Calendar AI"
+                icon={<Google />}
+                iconPosition="start"
+              />
+            </Tabs>
+
+            {activeTab === 0 && (
+              <QuickCalendar onMessage={handleMessage} timezone={timezone} />
+            )}
+
+            {activeTab === 1 && (
+              <div className="row g-5">
                 <div className="col-12">
-                  <AiAnalysis
-                    jsonData={jsonData}
-                    onAnalysisStart={handleAnalysisStart}
-                    onAnalysisComplete={handleAnalysisComplete}
+                  <FileUpload
+                    onFilesProcessed={handleFilesProcessed}
                     onMessage={handleMessage}
                   />
                 </div>
-              )}
-              {(isAnalysisRunning || aiReport) && (
-                <div className="col-12">
-                  <AiReport report={aiReport} isLoading={isAnalysisRunning} />
-                </div>
-              )}
-            </div>
+                {jsonData && jsonData !== '[]' && (
+                  <div className="col-12">
+                    <AiAnalysis
+                      jsonData={jsonData}
+                      onAnalysisStart={handleAnalysisStart}
+                      onAnalysisComplete={handleAnalysisComplete}
+                      onMessage={handleMessage}
+                    />
+                  </div>
+                )}
+                {(isAnalysisRunning || aiReport) && (
+                  <div className="col-12">
+                    <AiReport report={aiReport} isLoading={isAnalysisRunning} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 2 && (
+              <GoogleCalendar onMessage={handleMessage} timezone={timezone} />
+            )}
           </CardContent>
         </Card>
       </Container>
     </ThemeProvider>
   );
-}
+};
+
+export default App;
