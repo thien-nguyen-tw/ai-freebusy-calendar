@@ -10,6 +10,21 @@ export interface CalendarEvent {
   attendees: string[];
 }
 
+export interface ScheduleData {
+  available: string[];
+  busy: string[];
+  bestSlots: string[];
+  source: 'ics' | 'image';
+  fileName: string;
+  choices: string[];
+}
+
+export interface ProcessedFile {
+  file: File;
+  type: 'ics' | 'image';
+  data?: CalendarEvent[] | ScheduleData;
+}
+
 export type MessageType = 'info' | 'success' | 'warning' | 'danger';
 
 export interface TimezoneInfo {
@@ -31,12 +46,13 @@ export interface MessageBoxProps {
 }
 
 export interface FileUploadProps {
-  onFilesProcessed: (jsonData: string) => void;
+  onFilesProcessed: (jsonData: string, scheduleData: ScheduleData[]) => void;
   onMessage: (text: string, type: MessageType) => void;
 }
 
 export interface AiAnalysisProps {
   jsonData: string;
+  scheduleData?: ScheduleData[];
   onAnalysisStart: () => void;
   onAnalysisComplete: (reportHtml: string) => void;
   onMessage: (text: string, type: MessageType) => void;

@@ -9,6 +9,7 @@ import {
   Psychology,
   Google,
   AccessTime,
+  Image as ImageIcon,
 } from '@mui/icons-material';
 import {
   Alert,
@@ -27,7 +28,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 
@@ -41,10 +41,16 @@ import {
   AiReportProps,
   QuickCalendarProps,
   GoogleCalendarProps,
+  ScheduleData,
 } from './types';
 
 // Import utils from utils.ts
-import { parseICS, COMMON_TIMEZONES, formatDateForAPI } from './utils';
+import {
+  parseICS,
+  COMMON_TIMEZONES,
+  formatDateForAPI,
+  processScheduleImage,
+} from './utils';
 
 // --- MUI Theme ---
 const theme = createTheme({
@@ -118,16 +124,33 @@ const TimezoneSelector: FC<{
 const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFiles = useCallback(
     async (files: File[]) => {
+      setIsProcessing(true);
       let allEvents: CalendarEvent[] = [];
+      const allScheduleData: ScheduleData[] = [];
+
       for (const file of files) {
         try {
-          const text = await file.text();
-          const events = parseICS(text);
-          allEvents = allEvents.concat(events);
+          const fileExtension = file.name.toLowerCase();
+
+          if (fileExtension.endsWith('.ics')) {
+            // Process ICS file
+            const text = await file.text();
+            const events = parseICS(text);
+            allEvents = allEvents.concat(events);
+          } else if (
+            fileExtension.endsWith('.jpg') ||
+            fileExtension.endsWith('.png')
+          ) {
+            // Process image file
+            const scheduleData = await processScheduleImage(file);
+            console.log(scheduleData);
+            allScheduleData.push(scheduleData);
+          }
         } catch (error) {
           const errorMessage =
             error instanceof Error
@@ -137,23 +160,32 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
           console.error('Error reading or parsing file:', file.name, error);
         }
       }
+
       const jsonData = JSON.stringify(allEvents, null, 2);
-      onFilesProcessed(jsonData);
+      onFilesProcessed(jsonData, allScheduleData);
+      setIsProcessing(false);
     },
     [onFilesProcessed, onMessage]
   );
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (!newFiles) return;
-    const validFiles = Array.from(newFiles).filter(file =>
-      file.name.toLowerCase().endsWith('.ics')
-    );
+    const validFiles = Array.from(newFiles).filter(file => {
+      const fileName = file.name.toLowerCase();
+      return (
+        fileName.endsWith('.ics') ||
+        fileName.endsWith('.jpg') ||
+        fileName.endsWith('.png')
+      );
+    });
+
     if (validFiles.length !== newFiles.length) {
       onMessage(
-        'Some files were not in the .ics format and were ignored.',
+        'Some files were not in the .ics, .jpg, or .png format and were ignored.',
         'warning'
       );
     }
+
     const updatedFiles = [...uploadedFiles, ...validFiles];
     setUploadedFiles(updatedFiles);
 
@@ -167,11 +199,13 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
     e.stopPropagation();
     setIsDragOver(true);
   };
+
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
   };
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -182,12 +216,56 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
   const removeFile = (index: number) => {
     const updatedFiles = uploadedFiles.filter((_, i) => i !== index);
     setUploadedFiles(updatedFiles);
-    onFilesProcessed(
-      updatedFiles.length > 0 ? JSON.stringify(parseICS(''), null, 2) : ''
-    );
+
     if (updatedFiles.length > 0) {
       processFiles(updatedFiles);
+    } else {
+      onFilesProcessed('', []);
     }
+  };
+
+  const getFileIcon = (fileName: string) => {
+    const fileExtension = fileName.toLowerCase();
+    if (fileExtension.endsWith('.ics')) {
+      return <CalendarToday sx={{ fontSize: 20, color: 'primary.main' }} />;
+    } else if (
+      fileExtension.endsWith('.jpg') ||
+      fileExtension.endsWith('.png')
+    ) {
+      return <ImageIcon sx={{ fontSize: 20, color: 'secondary.main' }} />;
+    }
+    return <CloudUpload sx={{ fontSize: 20, color: 'text.secondary' }} />;
+  };
+
+  const isImageFile = (fileName: string) => {
+    const fileExtension = fileName.toLowerCase();
+    return fileExtension.endsWith('.jpg') || fileExtension.endsWith('.png');
+  };
+
+  const ImagePreview: FC<{ file: File }> = ({ file }) => {
+    const [imageUrl, setImageUrl] = useState<string>('');
+
+    useEffect(() => {
+      const url = URL.createObjectURL(file);
+      setImageUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }, [file]);
+
+    return (
+      <Box
+        component="img"
+        src={imageUrl}
+        alt={file.name}
+        sx={{
+          width: 60,
+          height: 60,
+          objectFit: 'cover',
+          borderRadius: 1,
+          border: '1px solid',
+          borderColor: 'divider',
+        }}
+      />
+    );
   };
 
   return (
@@ -206,6 +284,7 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
           borderRadius: 1,
           cursor: 'pointer',
           transition: 'border-color 0.3s, background-color 0.3s',
+          position: 'relative',
         }}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -214,7 +293,7 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
       >
         <input
           type="file"
-          accept=".ics"
+          accept=".ics,.jpg,.png"
           multiple
           ref={fileInputRef}
           className="d-none"
@@ -235,7 +314,7 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
               or drag and drop
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              iCalendar (.ics) files only
+              iCalendar (.ics), image (.jpg, .png) files only
             </Typography>
           </Box>
         ) : (
@@ -246,24 +325,56 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
                 variant="outlined"
                 sx={{
                   mb: 1,
-                  p: 1,
+                  p: 2,
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
               >
-                <Typography variant="body2">{file.name}</Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    flex: 1,
+                  }}
+                >
+                  {isImageFile(file.name) ? (
+                    <ImagePreview file={file} />
+                  ) : (
+                    getFileIcon(file.name)
+                  )}
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight="medium">
+                      {file.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </Typography>
+                  </Box>
+                </Box>
                 <IconButton
                   size="small"
                   onClick={e => {
                     e.stopPropagation();
                     removeFile(index);
                   }}
+                  disabled={isProcessing}
                 >
                   <Close />
                 </IconButton>
               </Card>
             ))}
+            {isProcessing && (
+              <Box
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}
+              >
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">
+                  Processing files...
+                </Typography>
+              </Box>
+            )}
           </Box>
         )}
       </Box>
@@ -271,8 +382,60 @@ const FileUpload: FC<FileUploadProps> = ({ onFilesProcessed, onMessage }) => {
   );
 };
 
+const ScheduleDataDisplay: FC<{ scheduleData: ScheduleData[] }> = ({
+  scheduleData,
+}) => {
+  if (scheduleData.length === 0) return null;
+
+  return (
+    <Box>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Processed Schedule Data
+      </Typography>
+      {scheduleData.map((schedule, index) => (
+        <Card key={index} variant="outlined" sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              {schedule.fileName}
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Box>
+                <Typography variant="subtitle2" color="success.main">
+                  Available Times:
+                </Typography>
+                <Typography variant="body2">
+                  {schedule.choices.length > 0
+                    ? (schedule.choices[0] as any).message.content
+                    : 'None specified'}
+                </Typography>
+              </Box>
+              {/* <Box>
+                <Typography variant="subtitle2" color="error.main">
+                  Busy Times:
+                </Typography>
+                <Typography variant="body2">
+                  {schedule.busy.length > 0 ? schedule.busy.join(', ') : 'None specified'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="primary.main">
+                  Best Meeting Slots:
+                </Typography>
+                <Typography variant="body2">
+                  {schedule.bestSlots.length > 0 ? schedule.bestSlots.join(', ') : 'None specified'}
+                </Typography>
+              </Box> */}
+            </Box>
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
+  );
+};
+
 const AiAnalysis: FC<AiAnalysisProps> = ({
   jsonData,
+  scheduleData = [],
   onAnalysisComplete,
   onAnalysisStart,
   onMessage,
@@ -281,7 +444,7 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleAnalyze = async () => {
-    if (!jsonData || jsonData === '[]') {
+    if ((!jsonData || jsonData === '[]') && scheduleData.length === 0) {
       onMessage(
         'No data available for analysis. Please upload valid files first.',
         'warning'
@@ -291,13 +454,35 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
 
     setIsLoading(true);
     onAnalysisStart();
+
+    // Create a comprehensive prompt that includes both calendar events and schedule data
+    let dataDescription = '';
+
+    if (jsonData && jsonData !== '[]') {
+      dataDescription += `Calendar Events Data:\n${jsonData}\n\n`;
+    }
+
+    if (scheduleData.length > 0) {
+      dataDescription += `Schedule Data from Images:\n`;
+      scheduleData.forEach((schedule, index) => {
+        dataDescription += `\nSchedule ${index + 1} (${schedule.fileName}):\n`;
+        dataDescription += `Available times: ${schedule.available.join(', ')}\n`;
+        dataDescription += `Busy times: ${schedule.busy.join(', ')}\n`;
+        dataDescription += `Best meeting slots: ${schedule.bestSlots.join(', ')}\n`;
+      });
+      dataDescription += '\n';
+    }
+
     const userPrompt =
       prompt.trim() ||
-      'Based on the following calendar data in JSON format, provide a concise summary of the upcoming events. Mention the total number of events, highlight any potential conflicts or busy days, and list the next 3 upcoming events with their date and time.';
+      'Based on the following calendar data and schedule information, provide a comprehensive analysis. Include insights about available meeting times, busy periods, and recommendations for optimal scheduling.';
+
     try {
       const payload = {
         userPrompt,
         jsonData,
+        scheduleData,
+        dataDescription,
       };
       const apiUrl = 'http://localhost:8000/ai-analytics';
       const response = await fetch(apiUrl, {
@@ -344,7 +529,7 @@ const AiAnalysis: FC<AiAnalysisProps> = ({
         variant="outlined"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
-        placeholder="Summarize my upcoming week's schedule."
+        placeholder="Analyze my calendar and schedule images to find the best meeting times."
       />
       <Box sx={{ textAlign: 'center', mt: 2 }}>
         <Button
@@ -560,8 +745,19 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
         Choose your quick option to view the calendar:
       </Typography>
 
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <Box>
+          <TextField
+            fullWidth
+            label="Email"
+            type="text"
+            value={"thien.nguyen@gmail.com"}
+            contentEditable={false}
+            disabled
+          />
+        </Box>
+
+        <Box>
           <FormControl fullWidth>
             <InputLabel>Calendar Option</InputLabel>
             <Select
@@ -583,10 +779,10 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
               </MenuItem>
             </Select>
           </FormControl>
-        </Grid>
+        </Box>
 
         {selectedOption === 'events' && (
-          <Grid item xs={12} md={6} style={{ width: '200px' }}>
+          <Box>
             <TextField
               fullWidth
               label="Number of upcoming events"
@@ -595,12 +791,12 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
               onChange={e => setMaxResults(Number(e.target.value))}
               inputProps={{ min: 1, max: 50 }}
             />
-          </Grid>
+          </Box>
         )}
 
         {selectedOption === 'freebusy' && (
           <>
-            <Grid item xs={12} md={6}>
+            <Box>
               <TextField
                 fullWidth
                 label="Start Date"
@@ -609,8 +805,8 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
                 onChange={e => setStartDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
-            </Grid>
-            <Grid item xs={12} md={6}>
+            </Box>
+            <Box>
               <TextField
                 fullWidth
                 label="End Date"
@@ -619,20 +815,21 @@ const QuickCalendar: FC<QuickCalendarProps & { timezone: string }> = ({
                 onChange={e => setEndDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
-            </Grid>
+            </Box>
           </>
         )}
-      </Grid>
+      </Box>
 
-      <Button
-        variant="contained"
-        onClick={handleSubmit}
-        disabled={isLoading}
-        startIcon={isLoading ? <CircularProgress size={20} /> : null}
-        sx={{ mb: 3 }}
-      >
-        {isLoading ? 'Loading...' : 'Get Calendar Data'}
-      </Button>
+      <Box sx={{ textAlign: 'center', mt: 2 }}>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={isLoading}
+          startIcon={isLoading ? <CircularProgress size={20} /> : null}
+        >
+          {isLoading ? 'Loading...' : 'Get Calendar Data'}
+        </Button>
+      </Box>
 
       {result && (
         <Card variant="outlined">
@@ -709,16 +906,19 @@ const GoogleCalendar: FC<GoogleCalendarProps & { timezone: string }> = ({
         sx={{ mb: 2 }}
       />
 
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleSubmit}
-        disabled={isLoading || !question.trim()}
-        startIcon={isLoading ? <CircularProgress size={20} /> : <Psychology />}
-        sx={{ mb: 3 }}
-      >
-        {isLoading ? 'Analyzing...' : 'Ask AI'}
-      </Button>
+      <Box sx={{ textAlign: 'center', mt: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleSubmit}
+          disabled={isLoading || !question.trim()}
+          startIcon={
+            isLoading ? <CircularProgress size={20} /> : <Psychology />
+          }
+        >
+          {isLoading ? 'Analyzing...' : 'Ask AI'}
+        </Button>
+      </Box>
 
       {result && (
         <Card variant="outlined">
@@ -744,6 +944,7 @@ const GoogleCalendar: FC<GoogleCalendarProps & { timezone: string }> = ({
 
 const App: React.FC = () => {
   const [jsonData, setJsonData] = useState<string>('');
+  const [scheduleData, setScheduleData] = useState<ScheduleData[]>([]);
   const [aiReport, setAiReport] = useState<string>('');
   const [isAnalysisRunning, setIsAnalysisRunning] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
@@ -751,10 +952,11 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [timezone, setTimezone] = useState<string>('Asia/Bangkok'); // Default to GMT+7
 
-  const handleFilesProcessed = (data: string) => {
+  const handleFilesProcessed = (data: string, scheduleData: ScheduleData[]) => {
     setJsonData(data);
+    setScheduleData(scheduleData);
     setAiReport('');
-    if (data && data !== '[]') {
+    if ((data && data !== '[]') || scheduleData.length > 0) {
       handleMessage('Files processed. Ready for AI analysis.', 'success');
     }
   };
@@ -792,7 +994,7 @@ const App: React.FC = () => {
       <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
         <header className="text-center mb-5">
           <Typography variant="h3" component="h1" fontWeight="bold">
-            Calendar AI Assistant
+            Trivio Schedule Assistant
           </Typography>
           <Typography variant="h6" color="text.secondary">
             A powerful AI assistant for your personal calendar.
@@ -835,29 +1037,31 @@ const App: React.FC = () => {
             )}
 
             {activeTab === 1 && (
-              <div className="row g-5">
-                <div className="col-12">
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <Box>
                   <FileUpload
                     onFilesProcessed={handleFilesProcessed}
                     onMessage={handleMessage}
                   />
-                </div>
-                {jsonData && jsonData !== '[]' && (
-                  <div className="col-12">
+                </Box>
+                {(jsonData && jsonData !== '[]') || scheduleData.length > 0 ? (
+                  <Box>
+                    <ScheduleDataDisplay scheduleData={scheduleData} />
                     <AiAnalysis
                       jsonData={jsonData}
+                      scheduleData={scheduleData}
                       onAnalysisStart={handleAnalysisStart}
                       onAnalysisComplete={handleAnalysisComplete}
                       onMessage={handleMessage}
                     />
-                  </div>
-                )}
+                  </Box>
+                ) : null}
                 {(isAnalysisRunning || aiReport) && (
-                  <div className="col-12">
+                  <Box>
                     <AiReport report={aiReport} isLoading={isAnalysisRunning} />
-                  </div>
+                  </Box>
                 )}
-              </div>
+              </Box>
             )}
 
             {activeTab === 2 && (

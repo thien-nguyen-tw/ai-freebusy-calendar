@@ -1,4 +1,4 @@
-import { CalendarEvent, TimezoneInfo } from './types';
+import { CalendarEvent, TimezoneInfo, ScheduleData } from './types';
 
 export const parseICS = (icsData: string): CalendarEvent[] => {
   const events: CalendarEvent[] = [];
@@ -189,3 +189,91 @@ export const COMMON_TIMEZONES: TimezoneInfo[] = [
   },
   { value: 'UTC', label: 'UTC (GMT+00:00)', offset: 'GMT+00:00' },
 ];
+
+// Image processing utilities
+export const convertFileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+export const processScheduleImage = async (file: File): Promise<ScheduleData> => {
+  try {
+    const base64Image = await convertFileToBase64(file);
+    
+    // Make API call to OpenAI Vision API
+    const response = await fetch('http://localhost:8000/api/process-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        fileName: file.name,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log(result);
+    
+    // Parse the response to extract schedule data
+    const scheduleData: ScheduleData = {
+      available: [],
+      busy: [],
+      bestSlots: [],
+      source: 'image',
+      fileName: file.name,
+      choices: [],
+    };
+
+
+
+    // Extract data from the AI response
+    const content = result.choices?.[0]?.message?.content || '';
+    
+    scheduleData.choices.push(...result.choices);
+    
+    // Parse the structured response
+    const availableMatch = content.match(/Available:\s*\[(.*?)\]/);
+    const busyMatch = content.match(/Busy:\s*\[(.*?)\]/);
+    const bestSlotsMatch = content.match(/Best slots:\s*\[(.*?)\]/);
+
+    if (availableMatch) {
+      scheduleData.available = availableMatch[1]
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
+    }
+
+    if (busyMatch) {
+      scheduleData.busy = busyMatch[1]
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
+    }
+
+    if (bestSlotsMatch) {
+      scheduleData.bestSlots = bestSlotsMatch[1]
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
+    }
+
+    return scheduleData;
+  } catch (error) {
+    console.error('Error processing image:', error);
+    throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
