@@ -41,6 +41,7 @@ create_env_file() {
     # Read existing values
     local existing_gemini=$(get_existing_value "$env_file" "GEMINI_API_KEY")
     local existing_google=$(get_existing_value "$env_file" "GOOGLE_API_KEY")
+    local existing_openai=$(get_existing_value "$env_file" "OPENAI_API_KEY")
     
     # Use existing values if new ones are not provided
     if [[ -n "$existing_gemini" && -z "$GEMINI_API_KEY" ]]; then
@@ -52,6 +53,11 @@ create_env_file() {
       GOOGLE_API_KEY="$existing_google"
       echo "   🔄 Using existing GOOGLE_API_KEY: ${existing_google:0:10}..."
     fi
+
+    if [[ -n "$existing_openai" && -z "$OPENAI_API_KEY" ]]; then
+      OPENAI_API_KEY="$existing_openai"
+      echo "   🔄 Using existing OPENAI_API_KEY: ${existing_openai:0:10}..."
+    fi
   fi
   
   # Clear the .env file to start fresh
@@ -60,6 +66,7 @@ create_env_file() {
   # Add the API keys to the .env file
   echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> "$env_file"
   echo "GOOGLE_API_KEY=$GOOGLE_API_KEY" >> "$env_file"
+  echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> "$env_file"
   
   echo "✅ Created: $env_file"
 }
@@ -116,6 +123,20 @@ fi
 
 print_separator
 
+# 3. GET OPENAI API KEY
+echo "🔑 Step 2: OpenAI API Key"
+read -p "Enter your OPENAI_API_KEY (or press Enter to skip): " OPENAI_API_KEY
+
+# Check if user wants to skip
+if [[ -z "$OPENAI_API_KEY" ]]; then
+  echo "⏭️  Skipping OpenAI API Key input"
+  OPENAI_API_KEY=""  # Will be filled from existing .env files if available
+else
+  echo "✅ OpenAI API Key received"
+fi
+
+print_separator
+
 # 3. CREATE .ENV FILES FOR ALL PROJECTS
 echo "📁 Creating .env files for all projects..."
 echo
@@ -141,6 +162,7 @@ for project in "./aifbc-agent" "./aifbc-frontend" "./aifbc-google-calendar-agent
     echo "   📄 $project/.env"
     gemini_key=$(get_existing_value "$env_file" "GEMINI_API_KEY")
     google_key=$(get_existing_value "$env_file" "GOOGLE_API_KEY")
+    openai_key=$(get_existing_value "$env_file" "OPENAI_API_KEY")
     
     if [[ -n "$gemini_key" ]]; then
       echo "      • GEMINI_API_KEY: ${gemini_key:0:10}..."
@@ -152,6 +174,12 @@ for project in "./aifbc-agent" "./aifbc-frontend" "./aifbc-google-calendar-agent
       echo "      • GOOGLE_API_KEY: ${google_key:0:10}..."
     else
       echo "      • GOOGLE_API_KEY: (not set)"
+    fi
+
+    if [[ -n "$openai_key" ]]; then
+      echo "      • OPENAI_API_KEY: ${openai_key:0:10}..."
+    else
+      echo "      • OPENAI_API_KEY: (not set)"
     fi
   fi
 done
